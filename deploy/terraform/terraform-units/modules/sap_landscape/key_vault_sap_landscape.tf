@@ -28,7 +28,7 @@ resource "azurerm_key_vault" "kv_user" {
   tags                                 = var.tags
 
   dynamic "network_acls" {
-                           for_each = range(var.enable_firewall_for_keyvaults_and_storage ? 1 : 0)
+                           for_each = range(try(var.enable_firewall_for_keyvaults_and_storage, "") ? 1 : 0)
                            content {
 
                                       bypass         = "AzureServices"
@@ -80,7 +80,7 @@ resource "azurerm_role_assignment" "role_assignment_msi" {
                                            azurerm_key_vault.kv_user[0].id
                                          )
   role_definition_name                 = "Key Vault Administrator"
-  principal_id                         = var.deployer_tfstate.deployer_uai.principal_id
+  principal_id                         = try(var.deployer_tfstate.deployer_uai.principal_id, "")
 }
 
 resource "azurerm_role_assignment" "role_assignment_spn" {
@@ -98,7 +98,7 @@ resource "azurerm_key_vault_access_policy" "kv_user" {
   provider                             = azurerm.main
   count                                = (var.key_vault.exists || var.enable_rbac_authorization_for_keyvault) ? (
                                            0) : (
-                                           (length(var.deployer_tfstate) > 0 ? var.deployer_tfstate.deployer_uai.principal_id == local.service_principal.object_id : false) ? 0 : 1
+                                           (length(var.deployer_tfstate) > 0 ? try(var.deployer_tfstate.deployer_uai.principal_id, "") == local.service_principal.object_id : false) ? 0 : 1
                                          )
   key_vault_id                         = local.user_keyvault_exist ? local.user_key_vault_id : azurerm_key_vault.kv_user[0].id
   tenant_id                            = local.service_principal.tenant_id
@@ -336,7 +336,7 @@ resource "azurerm_key_vault_access_policy" "kv_user_msi" {
   count                                = local.user_keyvault_exist && var.enable_rbac_authorization_for_keyvault ? (
                                            0) : (
                                            length(var.deployer_tfstate) > 0 ? (
-                                             length(var.deployer_tfstate.deployer_uai) == 2 ? (
+                                             length(try(var.deployer_tfstate.deployer_uai,"")) == 2 ? (
                                                1) : (
                                                0
                                              )) : (
@@ -348,8 +348,8 @@ resource "azurerm_key_vault_access_policy" "kv_user_msi" {
                                            azurerm_key_vault.kv_user[0].id
                                          )
 
-  tenant_id                            = var.deployer_tfstate.deployer_uai.tenant_id
-  object_id                            = var.deployer_tfstate.deployer_uai.principal_id
+  tenant_id                            = try(var.deployer_tfstate.deployer_uai.tenant_id, "")
+  object_id                            = try(var.deployer_tfstate.deployer_uai.principal_id, "")
 
   secret_permissions                   = [
                                           "Get",
@@ -473,7 +473,7 @@ resource "azurerm_private_endpoint" "kv_user" {
   dynamic "private_dns_zone_group" {
                                       for_each = range(var.dns_settings.register_endpoints_with_dns ? 1 : 0)
                                       content {
-                                        name                 = var.dns_settings.dns_zone_names.vault_dns_zone_name
+                                        name                 = try(var.dns_zone_names.vault_dns_zone_name, "")
                                         private_dns_zone_ids = [data.azurerm_private_dns_zone.keyvault[0].id]
                                       }
                                     }
@@ -482,9 +482,9 @@ resource "azurerm_private_endpoint" "kv_user" {
 
 data "azurerm_private_dns_zone" "keyvault" {
   provider                             = azurerm.dnsmanagement
-  count                                = var.dns_settings.register_storage_accounts_keyvaults_with_dns ? 1 : 0
-  name                                 = var.dns_settings.dns_zone_names.vault_dns_zone_name
-  resource_group_name                  = var.dns_settings.privatelink_dns_resourcegroup_name
+  count                                = var.use_private_endpoint && !var.use_custom_dns_a_registration ? 1 : 0
+  name                                 = try(var.dns_zone_names.vault_dns_zone_name, "")
+  resource_group_name                  = try(var.management_dns_resourcegroup_name, "")
 }
 
 resource "azurerm_private_dns_a_record" "keyvault" {
@@ -493,8 +493,8 @@ resource "azurerm_private_dns_a_record" "keyvault" {
   name                                 = lower(
                                            format("%s", local.user_keyvault_name)
                                          )
-  zone_name                            = var.dns_settings.dns_zone_names.vault_dns_zone_name
-  resource_group_name                  = var.dns_settings.privatelink_dns_resourcegroup_name
+  zone_name                            = try(var.dns_zone_names.vault_dns_zone_name, "")
+  resource_group_name                  = try(var.management_dns_resourcegroup_name, "")
   ttl                                  = 10
   records                              = [
                                            length(var.keyvault_private_endpoint_id) > 0 ? (
@@ -519,10 +519,17 @@ resource "azurerm_private_dns_zone_virtual_network_link" "vault" {
                                            var.naming.separator,
                                            "vault"
                                          )
-  resource_group_name                  = var.dns_settings.privatelink_dns_resourcegroup_name
-  private_dns_zone_name                = var.dns_settings.dns_zone_names.vault_dns_zone_name
+  resource_group_name                  = try(var.management_dns_resourcegroup_name, "")
+  private_dns_zone_name                = try(var.dns_zone_names.vault_dns_zone_name, "")
   virtual_network_id                   = azurerm_virtual_network.vnet_sap[0].id
   registration_enabled                 = false
+}
+
+data "azurerm_private_dns_zone" "vault" {
+  provider                             = azurerm.dnsmanagement
+  count                                = var.use_private_endpoint && var.register_endpoints_with_dns ? 1 : 0
+  name                                 = try(var.dns_zone_names.vault_dns_zone_name, "")
+  resource_group_name                  = try(var.management_dns_resourcegroup_name, "")
 }
 
 
