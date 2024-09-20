@@ -936,3 +936,7 @@ variable "deployer_tfstate_key"                   {
                                                     default = ""
                                                   }
 
+variable "spn_key_vault_arm_id"                   {
+                                                    description = "landscape key vault user arm id"
+                                                    default     = ""
+                                                  }

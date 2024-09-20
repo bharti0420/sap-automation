@@ -202,10 +202,10 @@ resource "azurerm_network_security_rule" "nsr_controlplane_web" {
   source_port_range                    = "*"
   destination_port_ranges              = [22, 443, 3389, 5985, 5986, 2049, 111]
   source_address_prefixes              = compact(concat(
-                                           var.deployer_tfstate.subnet_mgmt_address_prefixes,
-                                           var.deployer_tfstate.subnet_bastion_address_prefixes,
-                                           local.SAP_virtualnetwork_exists ? (
-                                             data.azurerm_virtual_network.vnet_sap[0].address_space) : (
+                                           try(var.deployer_tfstate.subnet_mgmt_address_prefixes, []),
+                                           try(var.deployer_tfstate.subnet_bastion_address_prefixes, []),
+                                           local.SAP_virtualnetwork_exists ? tolist(
+                                             data.azurerm_virtual_network.vnet_sap[0].address_space) : tolist(
                                              azurerm_virtual_network.vnet_sap[0].address_space
                                            )))
   destination_address_prefixes         = local.web_subnet_existing ? data.azurerm_subnet.web[0].address_prefixes : azurerm_subnet.web[0].address_prefixes
@@ -293,10 +293,10 @@ resource "azurerm_network_security_rule" "nsr_controlplane_admin" {
   source_port_range                    = "*"
   destination_port_ranges              = [22, 443, 3389, 5985, 5986,111, 635, 2049, 4045, 4046, 4049, 2049, 111]
   source_address_prefixes              = compact(concat(
-                                           var.deployer_tfstate.subnet_mgmt_address_prefixes,
-                                           var.deployer_tfstate.subnet_bastion_address_prefixes,
-                                           local.SAP_virtualnetwork_exists ? (
-                                             data.azurerm_virtual_network.vnet_sap[0].address_space) : (
+                                           try(var.deployer_tfstate.subnet_mgmt_address_prefixes, []),
+                                           try(var.deployer_tfstate.subnet_bastion_address_prefixes, []),
+                                           local.SAP_virtualnetwork_exists ? tolist(
+                                             data.azurerm_virtual_network.vnet_sap[0].address_space) : tolist(
                                              azurerm_virtual_network.vnet_sap[0].address_space
                                            )))
   destination_address_prefixes         = local.admin_subnet_existing ? data.azurerm_subnet.admin[0].address_prefixes : azurerm_subnet.admin[0].address_prefixes
